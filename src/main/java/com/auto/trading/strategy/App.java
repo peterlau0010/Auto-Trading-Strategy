@@ -1,91 +1,66 @@
 package com.auto.trading.strategy;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.ta4j.core.BaseTimeSeries;
+import org.ta4j.core.TimeSeries;
+import org.ta4j.core.indicators.SMAIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
+import org.ta4j.core.num.Num;
 
 import com.binance.api.client.BinanceApiClientFactory;
 import com.binance.api.client.BinanceApiWebSocketClient;
 import com.binance.api.client.domain.market.CandlestickInterval;
 import com.tictactec.ta.lib.Core;
+import com.tictactec.ta.lib.MAType;
 import com.tictactec.ta.lib.MInteger;
 import com.tictactec.ta.lib.RetCode;
 
 /**
- * Hello world!
- *
+ * Hello world! PSAQZ9C345M3GAJJ
  */
 public class App {
 	BinanceApiWebSocketClient client;
 
-	public static final int PERIODS_AVERAGE = 5;
-//	public static final int TOTAL_PERIODS = 3;
-	List<Double> closeList = new ArrayList<Double>();
-	double[] closePrice ;
-	double[] out;
+	TimeSeries series;
+
 	public static void main(String[] args) {
 		new App();
 	}
 
 	public void init() {
 		client = BinanceApiClientFactory.newInstance().newWebSocketClient();
+		series = new BaseTimeSeries.SeriesBuilder().withName("btcusdt").build();
 	}
 
 	public App() {
 		init();
-		client.onCandlestickEvent("ethbtc", CandlestickInterval.ONE_MINUTE, response -> {
-			System.out.println(response.getClose());
-			closeList.add(Double.parseDouble(response.getClose()));
-			if(closeList.size()>=5) {
-				
-				
-				closePrice = ArrayUtils.toPrimitive(closeList.stream().toArray(Double[]::new));
-				out = new double [closeList.size()];
-				getSMA();
-				
-				
+
+		client.onCandlestickEvent("btcusdt", CandlestickInterval.ONE_MINUTE, response -> {
+			if (response.getBarFinal()) {
+				series.addBar(ZonedDateTime.now(), response.getOpen(), response.getHigh(), response.getLow(),
+						response.getClose(), response.getVolume());
+				getSMA(series.getBarCount());
 			}
-			
-			
 		});
+//		getSMA(1);
+//		();
 
 	}
-	
-	public void getSMA() {
-//		double[] closePrice = new double[TOTAL_PERIODS];
-//		double[] out = new double[TOTAL_PERIODS];
-		MInteger begin = new MInteger();
-		MInteger length = new MInteger();
 
-//		for (int i = 0; i < closePrice.length; i++) {
-//			closePrice[i] = (double) i;
-//		}
+	public void getSMA(int count) {
 
-		
-		
-		Core c = new Core();
-		RetCode retCode = c.sma(0, closeList.size() - 1, closePrice, PERIODS_AVERAGE, begin, length,out);
+		ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
+		System.out.println("Latest close price : " + closePrice);
 
-		if (retCode == RetCode.Success) {
-			System.out.println("Output Start Period: " + begin.value);
-			System.out.println("Output End Period: " + (begin.value + length.value - 1));
+		SMAIndicator shortSma = new SMAIndicator(closePrice, 7);
+		System.out.println("7-ticks-SMA value at the " + count + ": " + shortSma.getValue(count - 1).doubleValue());
 
-//			for (int i = begin.value; i < begin.value + length.value; i++) {
-				StringBuilder line = new StringBuilder();
-//				line.append("Period #");
-//				line.append(i);
-//				line.append(" close=");
-//				line.append(closePrice[i]);
-				line.append(" mov_avg=");
-//				System.out.println(i - begin.value);
-//				System.out.println(length.value - 1);
-				line.append(out[length.value - 1]);
-				System.out.println(line.toString());
-//			}
-		} else {
-			System.out.println("Error");
-		}
+		SMAIndicator longSma = new SMAIndicator(closePrice, 25);
+		System.out.println("25-ticks-SMA value at the " + count + ": " + longSma.getValue(count - 1).doubleValue());
+
 	}
 }
