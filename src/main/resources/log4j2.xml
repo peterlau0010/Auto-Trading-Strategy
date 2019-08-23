@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+	<Appenders>
+
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout
+				pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
+		</Console>
+
+		<!-- <File name="File" fileName="/var/log/Auto-Trading-Bot/app.log"> <PatternLayout 
+			pattern="%d{yyyy-mm-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" 
+			/> </File> -->
+
+		<RollingFile name="RollingFile"
+			fileName="/var/log/Auto-Trading-Strategy/app.log"
+			filePattern="/var/log/Auto-Trading-Strategy/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
+			<PatternLayout>
+				<Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="10 MB" />
+			</Policies>
+		</RollingFile>
+
+	</Appenders>
+	<Loggers>
+		<Root level="Debug">
+			<AppenderRef ref="Console" />
+			<AppenderRef ref="RollingFile" level="Info" />
+		</Root>
+	</Loggers>
+</Configuration>
