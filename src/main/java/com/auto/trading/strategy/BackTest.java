@@ -182,46 +182,14 @@ public class BackTest {
 	}
 
 	public static void runStrategies() {
-		TimeSeriesManager manager = new TimeSeriesManager(series) {
-			public TradingRecord run(Strategy strategy, OrderType orderType, Num amount, int startIndex,
-					int finishIndex) {
-
-				int runBeginIndex = Math.max(startIndex, series.getBeginIndex());
-				int runEndIndex = Math.min(finishIndex, series.getEndIndex());
-
-//		        log.trace("Running strategy (indexes: {} -> {}): {} (starting with {})", runBeginIndex, runEndIndex, strategy, orderType);
-				TradingRecord tradingRecord = new BaseTradingRecord(orderType);
-				for (int i = runBeginIndex; i <= runEndIndex; i++) {
-					// For each bar between both indexes...
-					if (strategy.shouldOperate(i, tradingRecord)) {
-						tradingRecord.operate(i, series.getBar(i).getClosePrice(), amount);
-					}
-				}
-
-				if (!tradingRecord.isClosed()) {
-					// If the last trade is still opened, we search out of the run end index.
-					// May works if the end index for this run was inferior to the actual number of
-					// bars
-					int seriesMaxSize = Math.max(series.getEndIndex() + 1, series.getBarData().size());
-					for (int i = runEndIndex + 1; i < seriesMaxSize; i++) {
-						// For each bar after the end index of this run...
-						// --> Trying to close the last trade
-						if (strategy.shouldOperate(i, tradingRecord)) {
-							tradingRecord.operate(i, series.getBar(i).getClosePrice(), amount);
-							break;
-						}
-					}
-				}
-				return tradingRecord;
-			}
-		};
+		TimeSeriesManager manager = new TimeSeriesManager(series);
 //		tradingRecord = manager.run(strategy,series.getBeginIndex()+1,series.getEndIndex());
 		tradingRecord = manager.run(strategy, series.getBeginIndex() + 6, series.getBarCount());
 	}
 
 	public static void buildIndicators() {
 		closePrice = new ClosePriceIndicator(series);
-		rsi = new RSIIndicator(closePrice, 6);
+		rsi = new RSIIndicator(closePrice, 12);
 		for (int i = 0; i < series.getBarCount(); i++)
 			if (rsi.getValue(i).doubleValue() < 30 && rsi.getValue(i).doubleValue() > 10)
 				System.out.println(series.getBar(i).getDateName() + "  " + rsi.getValue(i));
@@ -229,23 +197,87 @@ public class BackTest {
 
 	public static void buildStrategies() {
 		Rule buyingRule = new UnderIndicatorRule(rsi, 30d);
-		Rule sellingRule = new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(10));
+		Rule sellingRule = new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(10)) {
+//			private final ClosePriceIndicator closePrice;
+			/** the loss-distance as percentage */
+			private final Num lossPercentage = PrecisionNum.valueOf(10);
+			/** the current price extremum */
+			private Num currentExtremum = null;
+			/** the current threshold */
+			private Num threshold = null;
+			/** the current trade */
+			private Trade supervisedTrade;
 
-		strategy = new BaseStrategy(buyingRule, sellingRule) {
-			public boolean shouldOperate(int index, TradingRecord tradingRecord) {
-
-				Trade trade = tradingRecord.getCurrentTrade();
-				if (trade.isNew()) {
-					return shouldEnter(index, tradingRecord);
+			@Override
+			public boolean isSatisfied(int index, TradingRecord tradingRecord) {
+				boolean satisfied = false;
+				// No trading history or no trade opened, no loss
+				if (tradingRecord != null) {
+					Trade currentTrade = tradingRecord.getCurrentTrade();
+					if (currentTrade.isOpened()) {
+						if (!currentTrade.equals(supervisedTrade)) {
+//							System.out.println("Initial trade:");
+							supervisedTrade = currentTrade;
+							currentExtremum = closePrice.getValue(index - 1);
+							Num lossRatioThreshold = currentExtremum.numOf(100).minus(lossPercentage)
+									.dividedBy(currentExtremum.numOf(100));
+							threshold = currentExtremum.multipliedBy(lossRatioThreshold);
+//							threshold = null;
+//							currentExtremum = null;
+						}
+						Num currentPrice = closePrice.getValue(index);
+//						System.out.println("CurrentPrice: " + currentPrice);
+						if (currentTrade.getEntry().isBuy()) {
+//							System.out.println("isBuy");
+							satisfied = isBuySatisfied(currentPrice);
+						} else {
+//							System.out.println("else isBuy");
+							satisfied = isSellSatisfied(currentPrice);
+						}
+					}
 				}
-				if (trade.isOpened()) {
-					System.out.print("############");
+				traceIsSatisfied(index, satisfied);
+//				System.out.println(satisfied);
+				return satisfied;
+			}
 
-					return shouldExit(index, tradingRecord);
+			private boolean isBuySatisfied(Num currentPrice) {
+				boolean satisfied = false;
+				if (currentExtremum == null) {
+					currentExtremum = currentPrice.numOf(Float.MIN_VALUE);
 				}
-				return false;
-			};
+				if (currentPrice.isGreaterThan(currentExtremum)) {
+					currentExtremum = currentPrice;
+					Num lossRatioThreshold = currentPrice.numOf(100).minus(lossPercentage)
+							.dividedBy(currentPrice.numOf(100));
+					threshold = currentExtremum.multipliedBy(lossRatioThreshold);
+				}
+				if (threshold != null) {
+					satisfied = currentPrice.isLessThanOrEqual(threshold);
+				}
+				return satisfied;
+			}
+
+			private boolean isSellSatisfied(Num currentPrice) {
+				boolean satisfied = false;
+				if (currentExtremum == null) {
+					currentExtremum = currentPrice.numOf(Float.MAX_VALUE);
+				}
+				if (currentPrice.isLessThan(currentExtremum)) {
+					currentExtremum = currentPrice;
+					Num lossRatioThreshold = currentPrice.numOf(100).plus(lossPercentage)
+							.dividedBy(currentPrice.numOf(100));
+					threshold = currentExtremum.multipliedBy(lossRatioThreshold);
+				}
+				if (threshold != null) {
+					satisfied = currentPrice.isGreaterThanOrEqual(threshold);
+				}
+
+				return satisfied;
+			}
 		};
+
+		strategy = new BaseStrategy(buyingRule, sellingRule);
 	}
 
 	public static void init() throws IOException {

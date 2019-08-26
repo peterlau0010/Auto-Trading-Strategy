@@ -33,16 +33,16 @@ public class LoadHistoryRecord {
 		SimpleDateFormat sdf = new SimpleDateFormat();
 		sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
-//		for (int i = 0; i < count; i++) {
-//			List<Candlestick> candlesticks = restClient.getCandlestickBars("BNBUSDT", CandlestickInterval.WEEKLY,
-//					limit, start, (start + limit * 1000 * 60));
-//
-//			history.addAll(candlesticks);
-//
-//			start += (limit * 1000 * 60);
-//		}
-		List<Candlestick> candlesticks = restClient.getCandlestickBars("BTCUSDT", CandlestickInterval.WEEKLY);
-		history.addAll(candlesticks);
+		for (int i = 0; i < count; i++) {
+			List<Candlestick> candlesticks = restClient.getCandlestickBars("BTCUSDT", CandlestickInterval.HOURLY, limit,
+					start, (start + limit * 1000 * 60));
+
+			history.addAll(candlesticks);
+
+			start += (limit * 1000 * 60);
+		}
+//		List<Candlestick> candlesticks = restClient.getCandlestickBars("BTCUSDT", CandlestickInterval.DAILY);
+//		history.addAll(candlesticks);
 		FileWriter csvWriter = new FileWriter("history.csv");
 		csvWriter.append("Time,Open,High,Low,Close,Volume,UTCTime\n");
 
