@@ -35,8 +35,19 @@ import org.ta4j.core.TimeSeries;
 import org.ta4j.core.TimeSeriesManager;
 import org.ta4j.core.Trade;
 import org.ta4j.core.TradingRecord;
+import org.ta4j.core.indicators.ParabolicSarIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
+import org.ta4j.core.indicators.SMAIndicator;
+import org.ta4j.core.indicators.StochasticOscillatorDIndicator;
+import org.ta4j.core.indicators.StochasticOscillatorKIndicator;
+import org.ta4j.core.indicators.StochasticRSIIndicator;
+import org.ta4j.core.indicators.bollinger.BollingerBandsLowerIndicator;
+import org.ta4j.core.indicators.bollinger.BollingerBandsMiddleIndicator;
+import org.ta4j.core.indicators.bollinger.BollingerBandsUpperIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
+import org.ta4j.core.indicators.helpers.MaxPriceIndicator;
+import org.ta4j.core.indicators.helpers.MinPriceIndicator;
+import org.ta4j.core.indicators.statistics.StandardDeviationIndicator;
 import org.ta4j.core.num.Num;
 import org.ta4j.core.num.PrecisionNum;
 import org.ta4j.core.trading.rules.CrossedDownIndicatorRule;
@@ -55,6 +66,15 @@ public class BackTest {
 	private static ClosePriceIndicator closePrice;
 	private static Strategy strategy;
 	private static TradingRecord tradingRecord;
+	private static RSIIndicator rsiShort;
+	private static RSIIndicator rsiLong;
+	private static StochasticOscillatorDIndicator d;
+	private static StochasticOscillatorKIndicator k;
+	private static StochasticRSIIndicator stochasticRSI;
+	private static SMAIndicator smaShort;
+	private static SMAIndicator smaLong;
+	private static ParabolicSarIndicator pSar;
+	private static BollingerBandsLowerIndicator bbl;
 
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
@@ -96,6 +116,8 @@ public class BackTest {
 		FileWriter csvWriter = new FileWriter("backtest_result.csv");
 		csvWriter.append("TimeBuy,PriceBuy,TimeSell,PriceSell,Profile\n");
 
+		double sum = 0;
+
 		for (Trade trade : tradingRecord.getTrades()) {
 			csvWriter.append(series.getBar(trade.getEntry().getIndex()).getDateName() + ",");
 			csvWriter.append(trade.getEntry().getPrice().doubleValue() + ",");
@@ -108,13 +130,14 @@ public class BackTest {
 
 			csvWriter.append("\n");
 
+			sum += (trade.getExit().getPrice().doubleValue() - trade.getEntry().getPrice().doubleValue());
+
 		}
 
 		csvWriter.flush();
 		csvWriter.close();
 
-		System.out.println(series.getMaximumBarCount());
-		System.out.println(series.getBarCount());
+		System.out.println("Profit: " + sum);
 	}
 
 	public static void showCashFlowChart() {
@@ -183,24 +206,65 @@ public class BackTest {
 
 	public static void runStrategies() {
 		TimeSeriesManager manager = new TimeSeriesManager(series);
-//		tradingRecord = manager.run(strategy,series.getBeginIndex()+1,series.getEndIndex());
-		tradingRecord = manager.run(strategy, series.getBeginIndex() + 6, series.getBarCount());
+//		tradingRecord = manager.run(strategy, series.getBeginIndex() + 20, series.getBarCount() / 4);
+		tradingRecord = manager.run(strategy, series.getBarCount(), series.getBarCount());
 	}
 
 	public static void buildIndicators() {
 		closePrice = new ClosePriceIndicator(series);
-		rsi = new RSIIndicator(closePrice, 12);
-		for (int i = 0; i < series.getBarCount(); i++)
-			if (rsi.getValue(i).doubleValue() < 30 && rsi.getValue(i).doubleValue() > 10)
-				System.out.println(series.getBar(i).getDateName() + "  " + rsi.getValue(i));
+		rsiShort = new RSIIndicator(closePrice, 6);
+		rsiLong = new RSIIndicator(closePrice, 12);
+		smaShort = new SMAIndicator(closePrice, 7);
+		smaLong = new SMAIndicator(closePrice, 25);
+		stochasticRSI = new StochasticRSIIndicator(series, 14);
+		StandardDeviationIndicator standardDeviation = new StandardDeviationIndicator(closePrice, 20);
+		SMAIndicator sma = new SMAIndicator(closePrice, 20);
+		BollingerBandsMiddleIndicator bbm = new BollingerBandsMiddleIndicator(sma);
+		
+
+		BollingerBandsLowerIndicator bbl = new BollingerBandsLowerIndicator(bbm, standardDeviation);
+		BollingerBandsUpperIndicator bbh = new BollingerBandsUpperIndicator(bbm, standardDeviation);
+//		pSar = new ParabolicSarIndicator(series);
+//		System.out.println(
+//				series.getBar(series.getBarCount() - 2).getDateName() + " K:" + k.getValue(series.getBarCount() - 2));
+//		System.out.println(
+//				series.getBar(series.getBarCount() - 2).getDateName() + " D:" + d.getValue(series.getBarCount() - 2));
+//		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Sar:"
+//				+ pSar.getValue(series.getBarCount() - 2));
+		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " BBL:"
+				+ bbl.getValue(series.getBarCount() - 2));
+		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " BBM:"
+				+ bbm.getValue(series.getBarCount() - 2));
+		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " BBH:"
+				+ bbh.getValue(series.getBarCount() - 2));
+		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Close Price:"
+				+ closePrice.getValue(series.getBarCount() - 2));
+		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Rsi Short:"
+				+ rsiShort.getValue(series.getBarCount() - 2));
+		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Rsi Long:"
+				+ rsiLong.getValue(series.getBarCount() - 2));
+
+		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Stochastic RSI:"
+				+ stochasticRSI.getValue(series.getBarCount() - 2));
+		
+//		for (int i = 0; i < series.getBarCount() - 1; i++) {
+//
+//			if (closePrice.getValue(i).doubleValue() < bbl.getValue(i).doubleValue()) {
+//				System.out.println(series.getBar(i).getDateName() + " BBL:" + bbl.getValue(i));
+//				System.out.println(series.getBar(i).getDateName() + " ClosePrice:" + closePrice.getValue(i));
+//			}
+//		}
+
+//		k = new SMAIndicator(sr, 3);
+//		d = new SMAIndicator(k, 3);
 	}
 
 	public static void buildStrategies() {
-		Rule buyingRule = new UnderIndicatorRule(rsi, 30d);
-		Rule sellingRule = new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(10)) {
+		Rule buyingRule = new UnderIndicatorRule(stochasticRSI, 0.3d).and(new UnderIndicatorRule(closePrice, bbl));
+		Rule sellingRule = (new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(2)) {
 //			private final ClosePriceIndicator closePrice;
 			/** the loss-distance as percentage */
-			private final Num lossPercentage = PrecisionNum.valueOf(10);
+			private final Num lossPercentage = PrecisionNum.valueOf(2);
 			/** the current price extremum */
 			private Num currentExtremum = null;
 			/** the current threshold */
@@ -275,13 +339,14 @@ public class BackTest {
 
 				return satisfied;
 			}
-		};
+		});
 
 		strategy = new BaseStrategy(buyingRule, sellingRule);
 	}
 
 	public static void init() throws IOException {
 		series = new BaseTimeSeries.SeriesBuilder().withName("historyCSV").build();
+//		series.setMaximumBarCount(200);
 		csvReader = new BufferedReader(new FileReader("history.csv"));
 		String row;
 		csvReader.readLine();

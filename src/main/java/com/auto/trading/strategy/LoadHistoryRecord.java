@@ -27,15 +27,18 @@ public class LoadHistoryRecord {
 		List<Candlestick> history = new ArrayList<Candlestick>();
 		long start = 1514764799999l; // 2017/01/01
 		long end = 1566691199999l; // 2019/08/25
+		start = 1546271999999l;
+		end = 1567267199999l;
+		
 		int limit = 720;
-		int count = (int) ((end - start) / 1000 / 60 / limit);
+		int count = (int) ((end - start) / 1000 / limit/ 60 );
 		System.out.println(count);
 		SimpleDateFormat sdf = new SimpleDateFormat();
 		sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
 		for (int i = 0; i < count; i++) {
-			List<Candlestick> candlesticks = restClient.getCandlestickBars("BTCUSDT", CandlestickInterval.HOURLY, limit,
-					start, (start + limit * 1000 * 60));
+			List<Candlestick> candlesticks = restClient.getCandlestickBars("BNBUSDT", CandlestickInterval.ONE_MINUTE,
+					limit, start, (start + limit * 1000 * 60));
 
 			history.addAll(candlesticks);
 
