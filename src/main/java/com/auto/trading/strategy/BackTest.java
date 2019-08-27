@@ -75,6 +75,11 @@ public class BackTest {
 	private static SMAIndicator smaLong;
 	private static ParabolicSarIndicator pSar;
 	private static BollingerBandsLowerIndicator bbl;
+	private static BollingerBandsUpperIndicator bbh;
+	private static StochasticOscillatorKIndicator stochasticOscillatorK;
+	private static StochasticOscillatorDIndicator stochasticOscillatorD;
+	private static SMAIndicator k2;
+	private static SMAIndicator d2;
 
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
@@ -106,7 +111,7 @@ public class BackTest {
 		System.out.println("Reward-risk ratio: " + new RewardRiskRatioCriterion().calculate(series, tradingRecord));
 		// Total transaction cost
 		System.out.println("Total transaction cost (from $1000): "
-				+ new LinearTransactionCostCriterion(1000, 0.001).calculate(series, tradingRecord));
+				+ new LinearTransactionCostCriterion(1, 0.001).calculate(series, tradingRecord));
 		// Buy-and-hold
 		System.out.println("Buy-and-hold: " + new BuyAndHoldCriterion().calculate(series, tradingRecord));
 		// Total profit vs buy-and-hold
@@ -114,7 +119,8 @@ public class BackTest {
 				+ new VersusBuyAndHoldCriterion(totalProfit).calculate(series, tradingRecord));
 
 		FileWriter csvWriter = new FileWriter("backtest_result.csv");
-		csvWriter.append("TimeBuy,PriceBuy,TimeSell,PriceSell,Profile\n");
+		csvWriter.append(
+				"TimeBuy,PriceBuy,TimeSell,PriceSell,BBH,StochasticRSI,k2,d2,stochasticOscillatorK,stochasticOscillatorD,Profile\n");
 
 		double sum = 0;
 
@@ -125,13 +131,29 @@ public class BackTest {
 			csvWriter.append(series.getBar(trade.getExit().getIndex()).getDateName() + ",");
 			csvWriter.append(trade.getExit().getPrice().doubleValue() + ",");
 
+			csvWriter.append(bbh.getValue(trade.getExit().getIndex()) + ",");
+			csvWriter.append(stochasticRSI.getValue(trade.getExit().getIndex()) + ",");
+			
+			csvWriter.append(k2.getValue(trade.getExit().getIndex()) + ",");
+			csvWriter.append(d2.getValue(trade.getExit().getIndex()) + ",");
+
+			csvWriter.append(stochasticOscillatorK.getValue(trade.getExit().getIndex()) + ",");
+			csvWriter.append(stochasticOscillatorD.getValue(trade.getExit().getIndex()) + ",");
+
 			csvWriter.append(
 					(trade.getExit().getPrice().doubleValue() - trade.getEntry().getPrice().doubleValue()) + "");
 
 			csvWriter.append("\n");
 
 			sum += (trade.getExit().getPrice().doubleValue() - trade.getEntry().getPrice().doubleValue());
-
+			StringBuilder sb = new StringBuilder();
+			sb.append(series.getBar(trade.getEntry().getIndex()).getDateName() + "|");
+			sb.append(trade.getEntry().getPrice().doubleValue() + "|");
+			sb.append(series.getBar(trade.getExit().getIndex()).getDateName() + "|");
+			sb.append(trade.getExit().getPrice().doubleValue() + "|");
+			sb.append((trade.getExit().getPrice().doubleValue() - trade.getEntry().getPrice().doubleValue()));
+			
+//			System.out.println(sb.toString());
 		}
 
 		csvWriter.flush();
@@ -206,8 +228,8 @@ public class BackTest {
 
 	public static void runStrategies() {
 		TimeSeriesManager manager = new TimeSeriesManager(series);
-//		tradingRecord = manager.run(strategy, series.getBeginIndex() + 20, series.getBarCount() / 4);
-		tradingRecord = manager.run(strategy, series.getBarCount(), series.getBarCount());
+		tradingRecord = manager.run(strategy, series.getBeginIndex() + 50, series.getBarCount());
+//		tradingRecord = manager.run(strategy, series.getBarCount(), series.getBarCount());
 	}
 
 	public static void buildIndicators() {
@@ -216,14 +238,19 @@ public class BackTest {
 		rsiLong = new RSIIndicator(closePrice, 12);
 		smaShort = new SMAIndicator(closePrice, 7);
 		smaLong = new SMAIndicator(closePrice, 25);
-		stochasticRSI = new StochasticRSIIndicator(series, 14);
+		
+		stochasticRSI = new StochasticRSIIndicator(new RSIIndicator(closePrice,14), 14);
+		k2 = new SMAIndicator(stochasticRSI, 3);
+		d2 = new SMAIndicator(k2, 3);
+		stochasticOscillatorK = new StochasticOscillatorKIndicator(closePrice, 3,new MaxPriceIndicator(series),new MinPriceIndicator(series));
+		stochasticOscillatorD = new StochasticOscillatorDIndicator(stochasticOscillatorK);
+		
 		StandardDeviationIndicator standardDeviation = new StandardDeviationIndicator(closePrice, 20);
 		SMAIndicator sma = new SMAIndicator(closePrice, 20);
 		BollingerBandsMiddleIndicator bbm = new BollingerBandsMiddleIndicator(sma);
-		
 
-		BollingerBandsLowerIndicator bbl = new BollingerBandsLowerIndicator(bbm, standardDeviation);
-		BollingerBandsUpperIndicator bbh = new BollingerBandsUpperIndicator(bbm, standardDeviation);
+		bbl = new BollingerBandsLowerIndicator(bbm, standardDeviation);
+		bbh = new BollingerBandsUpperIndicator(bbm, standardDeviation);
 //		pSar = new ParabolicSarIndicator(series);
 //		System.out.println(
 //				series.getBar(series.getBarCount() - 2).getDateName() + " K:" + k.getValue(series.getBarCount() - 2));
@@ -246,7 +273,7 @@ public class BackTest {
 
 		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Stochastic RSI:"
 				+ stochasticRSI.getValue(series.getBarCount() - 2));
-		
+
 //		for (int i = 0; i < series.getBarCount() - 1; i++) {
 //
 //			if (closePrice.getValue(i).doubleValue() < bbl.getValue(i).doubleValue()) {
@@ -260,8 +287,11 @@ public class BackTest {
 	}
 
 	public static void buildStrategies() {
-		Rule buyingRule = new UnderIndicatorRule(stochasticRSI, 0.3d).and(new UnderIndicatorRule(closePrice, bbl));
-		Rule sellingRule = (new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(2)) {
+		Rule buyingRule = new CrossedDownIndicatorRule(closePrice, bbl)
+				.and(new UnderIndicatorRule(stochasticRSI, 0.2d));
+		Rule sellingRule = new OverIndicatorRule(closePrice, bbh).and(new UnderIndicatorRule(stochasticRSI, 0.8d)).or
+
+		(new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(2)) {
 //			private final ClosePriceIndicator closePrice;
 			/** the loss-distance as percentage */
 			private final Num lossPercentage = PrecisionNum.valueOf(2);
