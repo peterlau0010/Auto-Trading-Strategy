@@ -28,16 +28,21 @@ public class LoadHistoryRecord {
 		long start = 1514764799999l; // 2018/01/01
 		long end = 1566691199999l; // 2019/08/25
 //		start = 1546271999999l; //2019/08/01
+		start = 1483199999999l; //2017/01/01
 		end = 1567267199999l;
 
-		int timeFrame = 60000 * 60 * 24 ; // millisecond 1 min = 60000ms, 1hr = 1440000ms
-		CandlestickInterval interval = CandlestickInterval.DAILY;
+		long timeFrame = 60000 * 60 ; // millisecond 1 min = 60000ms, 1hr = 1440000ms
+		CandlestickInterval interval = CandlestickInterval.HOURLY;
 
 		int limit = 720; // Get 720 record each time
-		int eachLoopMs = timeFrame * limit;
+		long eachLoopMs = timeFrame * limit;
 
-		int count = (int) ((end - start) / eachLoopMs);
-		System.out.println(count);
+		long count = (long) ((end - start) / eachLoopMs);
+		
+		System.out.println("Count:" + count);
+		System.out.println("Time Frame:" + timeFrame);
+		System.out.println("Limit:" + limit);
+		System.out.println("Each Loop Ms:" + (timeFrame * limit));
 		SimpleDateFormat sdf = new SimpleDateFormat();
 		sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 

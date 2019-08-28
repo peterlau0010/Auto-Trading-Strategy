@@ -56,6 +56,7 @@ import org.ta4j.core.trading.rules.CrossedDownIndicatorRule;
 import org.ta4j.core.trading.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.trading.rules.IsEqualRule;
 import org.ta4j.core.trading.rules.OverIndicatorRule;
+import org.ta4j.core.trading.rules.StopGainRule;
 import org.ta4j.core.trading.rules.StopLossRule;
 import org.ta4j.core.trading.rules.TrailingStopLossRule;
 import org.ta4j.core.trading.rules.UnderIndicatorRule;
@@ -265,7 +266,7 @@ public class BackTest {
 		smaShort = new SMAIndicator(closePrice, 7);
 		smaLong = new SMAIndicator(closePrice, 25);
 
-		stochasticRSI = new StochasticRSIIndicator(new RSIIndicator(closePrice, 14), 14);
+		stochasticRSI = new StochasticRSIIndicator(new RSIIndicator(closePrice, 9), 9);
 		stochasticOscillatorK = new SMAIndicator(stochasticRSI, 3);
 		stochasticOscillatorD = new SMAIndicator(stochasticOscillatorK, 3);
 
@@ -312,13 +313,13 @@ public class BackTest {
 
 	public static void buildStrategies() {
 		Rule buyingRule = new UnderIndicatorRule(closePrice, bbl)
-				.and(new UnderIndicatorRule(stochasticOscillatorK, 0.2d));
 //				.and(new UnderIndicatorRule(stochasticOscillatorK, 0.2d));
+				.and(new UnderIndicatorRule(rsiShort, 20d));
 //		Rule sellingRule = new OverIndicatorRule(closePrice, bbh).or(new StopLossRule(closePrice,2));
 //		.and(new OverIndicatorRule(pSar, closePrice));
-		Rule sellingRule =
+		Rule sellingRule = new StopGainRule(closePrice,20).or
 
-				(new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(10)) {
+				(new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(0)) {
 //			private final ClosePriceIndicator closePrice;
 					/** the loss-distance as percentage */
 					private final Num lossPercentage = PrecisionNum.valueOf(10);
