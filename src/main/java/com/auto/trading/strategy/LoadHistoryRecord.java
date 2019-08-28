@@ -25,24 +25,29 @@ public class LoadHistoryRecord {
 		BinanceApiRestClient restClient = factory.newRestClient();
 
 		List<Candlestick> history = new ArrayList<Candlestick>();
-		long start = 1514764799999l; // 2017/01/01
+		long start = 1514764799999l; // 2018/01/01
 		long end = 1566691199999l; // 2019/08/25
-		start = 1546271999999l;
+//		start = 1546271999999l; //2019/08/01
 		end = 1567267199999l;
-		
-		int limit = 720;
-		int count = (int) ((end - start) / 1000 / limit/ 60 );
+
+		int timeFrame = 60000 * 60 * 24 ; // millisecond 1 min = 60000ms, 1hr = 1440000ms
+		CandlestickInterval interval = CandlestickInterval.DAILY;
+
+		int limit = 720; // Get 720 record each time
+		int eachLoopMs = timeFrame * limit;
+
+		int count = (int) ((end - start) / eachLoopMs);
 		System.out.println(count);
 		SimpleDateFormat sdf = new SimpleDateFormat();
 		sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
 		for (int i = 0; i < count; i++) {
-			List<Candlestick> candlesticks = restClient.getCandlestickBars("BNBUSDT", CandlestickInterval.ONE_MINUTE,
-					limit, start, (start + limit * 1000 * 60));
+			List<Candlestick> candlesticks = restClient.getCandlestickBars("BNBUSDT", interval, limit, start,
+					(start + eachLoopMs));
 
 			history.addAll(candlesticks);
 
-			start += (limit * 1000 * 60);
+			start += eachLoopMs;
 		}
 //		List<Candlestick> candlesticks = restClient.getCandlestickBars("BTCUSDT", CandlestickInterval.DAILY);
 //		history.addAll(candlesticks);
