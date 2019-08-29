@@ -39,6 +39,8 @@ import org.ta4j.core.TimeSeries;
 import org.ta4j.core.TimeSeriesManager;
 import org.ta4j.core.Trade;
 import org.ta4j.core.TradingRecord;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.ParabolicSarIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.SMAIndicator;
@@ -73,6 +75,7 @@ import org.ta4j.core.trading.rules.TrailingStopLossRule;
 import org.ta4j.core.trading.rules.UnderIndicatorRule;
 
 import com.auto.trading.indicators.CustTrailingStopLossRule;
+import com.auto.trading.indicators.CustVWAPIndicator;
 
 import org.ta4j.core.analysis.CashFlow;
 import org.ta4j.core.analysis.criteria.*;
@@ -100,9 +103,11 @@ public class BackTest {
 	private static ADXIndicator adx;
 	private static PlusDIIndicator pdi;
 	private static MinusDIIndicator mdi;
-	private static VWAPIndicator vwap;
+	private static CustVWAPIndicator vwap;
 	
 	static DecimalFormat df = new DecimalFormat("#.####");
+	private static MACDIndicator macd;
+	private static EMAIndicator signal;
 
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
@@ -291,8 +296,10 @@ public class BackTest {
 		mdi = new MinusDIIndicator(series, 14);
 		pdi = new PlusDIIndicator(series, 14);
 		adx = new ADXIndicator(series, 14, 14);
-		vwap = new VWAPIndicator(series, 65);
-
+		vwap = new CustVWAPIndicator(series, 65);
+		macd = new MACDIndicator(closePrice,12,26);
+		signal = new EMAIndicator(macd,9);
+		
 		stochasticRSI = new StochasticRSIIndicator(new RSIIndicator(closePrice, 9), 9);
 		stochasticOscillatorK = new SMAIndicator(stochasticRSI, 3);
 		stochasticOscillatorD = new SMAIndicator(stochasticOscillatorK, 3);
@@ -304,10 +311,14 @@ public class BackTest {
 		bbl = new BollingerBandsLowerIndicator(bbm, standardDeviation);
 		bbh = new BollingerBandsUpperIndicator(bbm, standardDeviation);
 		pSar = new ParabolicSarIndicator(series);
-
+		vwap = new CustVWAPIndicator(series,30,15);
+		
+		
 		int barIndex = 62992;
 //		System.out.println(
 //				series.getBar(barIndex).getDateName() + " K:" + k.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " MACD:" + macd.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " Signal:" + signal.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " OBV:" + obv.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " cmf:" + cmf.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " BBL:" + bbl.getValue(barIndex));
@@ -322,15 +333,24 @@ public class BackTest {
 		System.out.println(series.getBar(barIndex).getDateName() + " -DI:" + mdi.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " ADX:" + adx.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " vwap:" + vwap.getValue(barIndex));
-		System.out.println(series.getBar(61892).getDateName() + " vwap:" + vwap.getValue(61892));
+//		System.out.println(series.getBar(62691).getDateName() + " vwap:" + vwap.getValue(62691));
 
-		for (int i = 0; i < 80 - 1; i++) {
-			vwap = new VWAPIndicator(series, i);
-			if(df.format(vwap.getValue(barIndex).doubleValue()).equals("25.8503")) {
-				System.out.println(i);
-				System.out.println(series.getBar(barIndex).getDateName() + " vwap:" + vwap.getValue(barIndex));	
-			}
-		}
+//		VWAPIndicator vwapo = new VWAPIndicator(series, 65);
+//		for (int i = 0; i < 100; i++) {
+//			VWAPIndicator vwapo = new VWAPIndicator(series, i);
+//			if(df.format(vwapo.getValue(62691).doubleValue()).equals("26.4451")) {
+//				System.out.println(i);
+//				System.out.println(series.getBar(62691).getDateName() + " vwap:" + vwapo.getValue(62691));	
+//			}
+//			if(df.format(vwapo.getValue(62692).doubleValue()).equals("26.3357")) {
+//				System.out.println(i);
+//				System.out.println(series.getBar(62692).getDateName() + " vwap:" + vwapo.getValue(62692));	
+//			}
+//		}
+		
+
+//		System.out.println(series.getBar(62691).getDateName() + " vwap:" + vwap.getValue(62691));
+//		System.out.println(series.getBar(62692).getDateName() + " vwap:" + vwap.getValue(62692));
 			
 			
 			
@@ -346,26 +366,32 @@ public class BackTest {
 	public static void buildStrategies() {
 
 		Rule buyingRule = new OverIndicatorRule(closePrice, 0)
-//				.and(new UnderIndicatorRule(closePrice, bbl))
+				.and(new UnderIndicatorRule(closePrice, bbl))
 //				.and(new UnderIndicatorRule(pSar,closePrice))
-//				.and(new UnderIndicatorRule(stochasticOscillatorK, 0.2d))
-//				.and(new UnderIndicatorRule(cmf, -0.2d))
-//				.and(new UnderIndicatorRule(rsiLong, 20d))
+				.and(new UnderIndicatorRule(stochasticOscillatorK, 0.1d))
+				.and(new UnderIndicatorRule(cmf, -0.2d))
+//				.and(new UnderIndicatorRule(rsiLong, 60d))
 //				.and(new OverIndicatorRule(adx, 25d))
 //				.and(new OverIndicatorRule(pdi, mdi))
-				.and(new CrossedUpIndicatorRule(closePrice, vwap))
-//				.and(new UnderIndicatorRule(rsiShort, 20d))
+//				.and(new OverIndicatorRule(closePrice, vwap))
+//				.and(new OverIndicatorRule(macd, signal))
+//				.and(new OverIndicatorRule(macd, 0d))
+				.and(new UnderIndicatorRule(rsiShort, 20d))
 
-//				.and(new IsFallingRule(obv, 2))
+//				.and(new IsRisingRule(adx, 5))
 //				.and(new UnderIndicatorRule(obv, 0d));
 		;
 
 //		Rule sellingRule = new OverIndicatorRule(closePrice, bbh).or(new StopLossRule(closePrice,2));
 //		.and(new OverIndicatorRule(pSar, closePrice));
 		Rule sellingRule = new StopGainRule(closePrice, 20)
-				.or(new CrossedDownIndicatorRule(closePrice, vwap))
+				
+//				.or(new CrossedDownIndicatorRule(closePrice, smaLong))
+//				.or(new CrossedDownIndicatorRule(closePrice, vwap))
 //				.or(new OverIndicatorRule(cmf, 0.4d))
 //				.or(new UnderIndicatorRule(closePrice,pSar))
+//				.or(new CrossedUpIndicatorRule(closePrice, bbh))
+//				.and(new OverIndicatorRule(rsiLong,70d))
 				.or(new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(10)))
 				.or(new StopLossRule(closePrice, PrecisionNum.valueOf(10)));
 
