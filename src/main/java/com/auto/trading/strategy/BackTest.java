@@ -8,9 +8,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -43,6 +45,9 @@ import org.ta4j.core.indicators.SMAIndicator;
 import org.ta4j.core.indicators.StochasticOscillatorDIndicator;
 import org.ta4j.core.indicators.StochasticOscillatorKIndicator;
 import org.ta4j.core.indicators.StochasticRSIIndicator;
+import org.ta4j.core.indicators.adx.ADXIndicator;
+import org.ta4j.core.indicators.adx.MinusDIIndicator;
+import org.ta4j.core.indicators.adx.PlusDIIndicator;
 import org.ta4j.core.indicators.bollinger.BollingerBandsLowerIndicator;
 import org.ta4j.core.indicators.bollinger.BollingerBandsMiddleIndicator;
 import org.ta4j.core.indicators.bollinger.BollingerBandsUpperIndicator;
@@ -50,16 +55,25 @@ import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.indicators.helpers.MaxPriceIndicator;
 import org.ta4j.core.indicators.helpers.MinPriceIndicator;
 import org.ta4j.core.indicators.statistics.StandardDeviationIndicator;
+import org.ta4j.core.indicators.volume.ChaikinMoneyFlowIndicator;
+import org.ta4j.core.indicators.volume.OnBalanceVolumeIndicator;
+import org.ta4j.core.indicators.volume.VWAPIndicator;
 import org.ta4j.core.num.Num;
 import org.ta4j.core.num.PrecisionNum;
+import org.ta4j.core.trading.rules.BooleanIndicatorRule;
 import org.ta4j.core.trading.rules.CrossedDownIndicatorRule;
 import org.ta4j.core.trading.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.trading.rules.IsEqualRule;
+import org.ta4j.core.trading.rules.IsFallingRule;
+import org.ta4j.core.trading.rules.IsRisingRule;
 import org.ta4j.core.trading.rules.OverIndicatorRule;
 import org.ta4j.core.trading.rules.StopGainRule;
 import org.ta4j.core.trading.rules.StopLossRule;
 import org.ta4j.core.trading.rules.TrailingStopLossRule;
 import org.ta4j.core.trading.rules.UnderIndicatorRule;
+
+import com.auto.trading.indicators.CustTrailingStopLossRule;
+
 import org.ta4j.core.analysis.CashFlow;
 import org.ta4j.core.analysis.criteria.*;
 
@@ -81,6 +95,14 @@ public class BackTest {
 	private static BollingerBandsUpperIndicator bbh;
 	private static SMAIndicator stochasticOscillatorK;
 	private static SMAIndicator stochasticOscillatorD;
+	private static ChaikinMoneyFlowIndicator cmf;
+	private static OnBalanceVolumeIndicator obv;
+	private static ADXIndicator adx;
+	private static PlusDIIndicator pdi;
+	private static MinusDIIndicator mdi;
+	private static VWAPIndicator vwap;
+	
+	static DecimalFormat df = new DecimalFormat("#.####");
 
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
@@ -120,73 +142,72 @@ public class BackTest {
 				+ new VersusBuyAndHoldCriterion(totalProfit).calculate(series, tradingRecord));
 
 		FileWriter csvWriter = new FileWriter("backtest_result.csv");
-		csvWriter.append(
-				"TimeBuy,PriceBuy,BBL,StochasticRSI,StochasticK,StochasticD,SAR,TimeSell,PriceSell,BBH,StochasticRSI,StochasticK,StochasticD,SAR,TradFee,Profit\n");
+		csvWriter.append("IndexBuy,TimeBuy,PriceBuy,IndexSell,TimeSell,PriceSell,Duration,TradFee,Profit\n");
 
-		double sum = 0;
-		DecimalFormat df = new DecimalFormat("#.####");
+		double sumNetProfit = 0;
+		double sumTradeFee = 0;
+		double sumTProfit = 0;
+		
 
 		List<Trade> trades;
 
 		trades = tradingRecord.getTrades();
+		Collections.reverse(trades);
 //		trades = tradingRecord.getTrades().subList(tradingRecord.getTrades().size() - 10,
 //				tradingRecord.getTrades().size() - 1);
 
 		for (Trade trade : trades) {
 
 			// Buy Info
+			csvWriter.append(trade.getEntry().getIndex() + ",");
 			csvWriter.append(series.getBar(trade.getEntry().getIndex()).getDateName() + ",");
 			csvWriter.append(trade.getEntry().getPrice().doubleValue() + ",");
 
-			csvWriter.append(df.format(bbl.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
-			csvWriter.append(df.format(stochasticRSI.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
-
-			csvWriter
-					.append(df.format(stochasticOscillatorK.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
-			csvWriter
-					.append(df.format(stochasticOscillatorD.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
-
-			csvWriter.append(df.format(pSar.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
+//			csvWriter.append(df.format(bbl.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
+//			csvWriter.append(df.format(stochasticRSI.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
+//			csvWriter
+//					.append(df.format(stochasticOscillatorK.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
+//			csvWriter
+//					.append(df.format(stochasticOscillatorD.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
+//			csvWriter.append(df.format(pSar.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
 
 			// Sell Info
+			csvWriter.append(trade.getExit().getIndex() + ",");
 			csvWriter.append(series.getBar(trade.getExit().getIndex()).getDateName() + ",");
 			csvWriter.append(df.format(trade.getExit().getPrice().doubleValue()) + ",");
 
-			csvWriter.append(df.format(bbh.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
-			csvWriter.append(df.format(stochasticRSI.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
+//			csvWriter.append(df.format(bbh.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
+//			csvWriter.append(df.format(stochasticRSI.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
+//			csvWriter.append(df.format(stochasticOscillatorK.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
+//			csvWriter.append(df.format(stochasticOscillatorD.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
+//			csvWriter.append(df.format(pSar.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
 
-			csvWriter.append(df.format(stochasticOscillatorK.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
-			csvWriter.append(df.format(stochasticOscillatorD.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
-
-			csvWriter.append(df.format(pSar.getValue(trade.getExit().getIndex()).doubleValue()) + ",");
+			csvWriter.append(Duration.between(series.getBar(trade.getEntry().getIndex()).getEndTime(),
+					series.getBar(trade.getExit().getIndex()).getEndTime()) + ",");
 
 			// Trading Fee
+			double profit = trade.getExit().getPrice().doubleValue() - trade.getEntry().getPrice().doubleValue();
 			double tradeFee = (trade.getExit().getPrice().doubleValue() + trade.getEntry().getPrice().doubleValue())
 					* 0.001;
+
 			csvWriter.append(df.format(tradeFee) + ",");
 
 			// Profit
-			csvWriter.append((df.format(
-					trade.getExit().getPrice().doubleValue() - trade.getEntry().getPrice().doubleValue() - tradeFee))
-					+ "");
+			csvWriter.append((profit - tradeFee) + "");
 
 			csvWriter.append("\n");
 
-			sum += (trade.getExit().getPrice().doubleValue() - trade.getEntry().getPrice().doubleValue() - tradeFee);
-//			StringBuilder sb = new StringBuilder();
-//			sb.append(series.getBar(trade.getEntry().getIndex()).getDateName() + "|");
-//			sb.append(trade.getEntry().getPrice().doubleValue() + "|");
-//			sb.append(series.getBar(trade.getExit().getIndex()).getDateName() + "|");
-//			sb.append(trade.getExit().getPrice().doubleValue() + "|");
-//			sb.append((trade.getExit().getPrice().doubleValue() - trade.getEntry().getPrice().doubleValue()));
-
-//			System.out.println(sb.toString());
+			sumTradeFee += tradeFee;
+			sumTProfit += profit;
 		}
 
 		csvWriter.flush();
 		csvWriter.close();
 
-		System.out.println("Profit: " + sum);
+		sumNetProfit = sumTProfit - sumTradeFee;
+		System.out.println("Sum of Profit: " + sumTProfit);
+		System.out.println("Sum of Trade Fee: " + sumTradeFee);
+		System.out.println("Net Profit: " + sumNetProfit);
 	}
 
 	public static void showCashFlowChart() {
@@ -262,9 +283,15 @@ public class BackTest {
 	public static void buildIndicators() {
 		closePrice = new ClosePriceIndicator(series);
 		rsiShort = new RSIIndicator(closePrice, 6);
-		rsiLong = new RSIIndicator(closePrice, 12);
+		rsiLong = new RSIIndicator(closePrice, 14);
 		smaShort = new SMAIndicator(closePrice, 7);
 		smaLong = new SMAIndicator(closePrice, 25);
+		cmf = new ChaikinMoneyFlowIndicator(series, 20);
+		obv = new OnBalanceVolumeIndicator(series);
+		mdi = new MinusDIIndicator(series, 14);
+		pdi = new PlusDIIndicator(series, 14);
+		adx = new ADXIndicator(series, 14, 14);
+		vwap = new VWAPIndicator(series, 65);
 
 		stochasticRSI = new StochasticRSIIndicator(new RSIIndicator(closePrice, 9), 9);
 		stochasticOscillatorK = new SMAIndicator(stochasticRSI, 3);
@@ -277,28 +304,36 @@ public class BackTest {
 		bbl = new BollingerBandsLowerIndicator(bbm, standardDeviation);
 		bbh = new BollingerBandsUpperIndicator(bbm, standardDeviation);
 		pSar = new ParabolicSarIndicator(series);
-//		System.out.println(
-//				series.getBar(series.getBarCount() - 2).getDateName() + " K:" + k.getValue(series.getBarCount() - 2));
-//		System.out.println(
-//				series.getBar(series.getBarCount() - 2).getDateName() + " D:" + d.getValue(series.getBarCount() - 2));
-//		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Sar:"
-//				+ pSar.getValue(series.getBarCount() - 2));
-		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " BBL:"
-				+ bbl.getValue(series.getBarCount() - 2));
-		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " BBM:"
-				+ bbm.getValue(series.getBarCount() - 2));
-		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " BBH:"
-				+ bbh.getValue(series.getBarCount() - 2));
-		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Close Price:"
-				+ closePrice.getValue(series.getBarCount() - 2));
-		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Rsi Short:"
-				+ rsiShort.getValue(series.getBarCount() - 2));
-		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Rsi Long:"
-				+ rsiLong.getValue(series.getBarCount() - 2));
 
-		System.out.println(series.getBar(series.getBarCount() - 2).getDateName() + " Stochastic RSI:"
-				+ stochasticRSI.getValue(series.getBarCount() - 2));
+		int barIndex = 62992;
+//		System.out.println(
+//				series.getBar(barIndex).getDateName() + " K:" + k.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " OBV:" + obv.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " cmf:" + cmf.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " BBL:" + bbl.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " BBM:" + bbm.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " BBH:" + bbh.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " Close Price:" + closePrice.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " Rsi Short:" + rsiShort.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " Rsi Long:" + rsiLong.getValue(barIndex));
+		System.out
+				.println(series.getBar(barIndex).getDateName() + " Stochastic RSI:" + stochasticRSI.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " +DI:" + pdi.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " -DI:" + mdi.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " ADX:" + adx.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " vwap:" + vwap.getValue(barIndex));
+		System.out.println(series.getBar(61892).getDateName() + " vwap:" + vwap.getValue(61892));
 
+		for (int i = 0; i < 80 - 1; i++) {
+			vwap = new VWAPIndicator(series, i);
+			if(df.format(vwap.getValue(barIndex).doubleValue()).equals("25.8503")) {
+				System.out.println(i);
+				System.out.println(series.getBar(barIndex).getDateName() + " vwap:" + vwap.getValue(barIndex));	
+			}
+		}
+			
+			
+			
 //		for (int i = 0; i < series.getBarCount() - 1; i++) {
 //
 //			if (closePrice.getValue(i).doubleValue() < bbl.getValue(i).doubleValue()) {
@@ -306,98 +341,33 @@ public class BackTest {
 //				System.out.println(series.getBar(i).getDateName() + " ClosePrice:" + closePrice.getValue(i));
 //			}
 //		}
-
-//		k = new SMAIndicator(sr, 3);
-//		d = new SMAIndicator(k, 3);
 	}
 
 	public static void buildStrategies() {
-		Rule buyingRule = new UnderIndicatorRule(closePrice, bbl)
-//				.and(new UnderIndicatorRule(stochasticOscillatorK, 0.2d));
-				.and(new UnderIndicatorRule(rsiShort, 20d));
+
+		Rule buyingRule = new OverIndicatorRule(closePrice, 0)
+//				.and(new UnderIndicatorRule(closePrice, bbl))
+//				.and(new UnderIndicatorRule(pSar,closePrice))
+//				.and(new UnderIndicatorRule(stochasticOscillatorK, 0.2d))
+//				.and(new UnderIndicatorRule(cmf, -0.2d))
+//				.and(new UnderIndicatorRule(rsiLong, 20d))
+//				.and(new OverIndicatorRule(adx, 25d))
+//				.and(new OverIndicatorRule(pdi, mdi))
+				.and(new CrossedUpIndicatorRule(closePrice, vwap))
+//				.and(new UnderIndicatorRule(rsiShort, 20d))
+
+//				.and(new IsFallingRule(obv, 2))
+//				.and(new UnderIndicatorRule(obv, 0d));
+		;
+
 //		Rule sellingRule = new OverIndicatorRule(closePrice, bbh).or(new StopLossRule(closePrice,2));
 //		.and(new OverIndicatorRule(pSar, closePrice));
-		Rule sellingRule = new StopGainRule(closePrice,20).or
-
-				(new TrailingStopLossRule(closePrice, PrecisionNum.valueOf(0)) {
-//			private final ClosePriceIndicator closePrice;
-					/** the loss-distance as percentage */
-					private final Num lossPercentage = PrecisionNum.valueOf(10);
-					/** the current price extremum */
-					private Num currentExtremum = null;
-					/** the current threshold */
-					private Num threshold = null;
-					/** the current trade */
-					private Trade supervisedTrade;
-
-					@Override
-					public boolean isSatisfied(int index, TradingRecord tradingRecord) {
-						boolean satisfied = false;
-						// No trading history or no trade opened, no loss
-						if (tradingRecord != null) {
-							Trade currentTrade = tradingRecord.getCurrentTrade();
-							if (currentTrade.isOpened()) {
-								if (!currentTrade.equals(supervisedTrade)) {
-//							System.out.println("Initial trade:");
-									supervisedTrade = currentTrade;
-									currentExtremum = closePrice.getValue(index - 1);
-									Num lossRatioThreshold = currentExtremum.numOf(100).minus(lossPercentage)
-											.dividedBy(currentExtremum.numOf(100));
-									threshold = currentExtremum.multipliedBy(lossRatioThreshold);
-//							threshold = null;
-//							currentExtremum = null;
-								}
-								Num currentPrice = closePrice.getValue(index);
-//						System.out.println("CurrentPrice: " + currentPrice);
-								if (currentTrade.getEntry().isBuy()) {
-//							System.out.println("isBuy");
-									satisfied = isBuySatisfied(currentPrice);
-								} else {
-//							System.out.println("else isBuy");
-									satisfied = isSellSatisfied(currentPrice);
-								}
-							}
-						}
-						traceIsSatisfied(index, satisfied);
-//				System.out.println(satisfied);
-						return satisfied;
-					}
-
-					private boolean isBuySatisfied(Num currentPrice) {
-						boolean satisfied = false;
-						if (currentExtremum == null) {
-							currentExtremum = currentPrice.numOf(Float.MIN_VALUE);
-						}
-						if (currentPrice.isGreaterThan(currentExtremum)) {
-							currentExtremum = currentPrice;
-							Num lossRatioThreshold = currentPrice.numOf(100).minus(lossPercentage)
-									.dividedBy(currentPrice.numOf(100));
-							threshold = currentExtremum.multipliedBy(lossRatioThreshold);
-						}
-						if (threshold != null) {
-							satisfied = currentPrice.isLessThanOrEqual(threshold);
-						}
-						return satisfied;
-					}
-
-					private boolean isSellSatisfied(Num currentPrice) {
-						boolean satisfied = false;
-						if (currentExtremum == null) {
-							currentExtremum = currentPrice.numOf(Float.MAX_VALUE);
-						}
-						if (currentPrice.isLessThan(currentExtremum)) {
-							currentExtremum = currentPrice;
-							Num lossRatioThreshold = currentPrice.numOf(100).plus(lossPercentage)
-									.dividedBy(currentPrice.numOf(100));
-							threshold = currentExtremum.multipliedBy(lossRatioThreshold);
-						}
-						if (threshold != null) {
-							satisfied = currentPrice.isGreaterThanOrEqual(threshold);
-						}
-
-						return satisfied;
-					}
-				});
+		Rule sellingRule = new StopGainRule(closePrice, 20)
+				.or(new CrossedDownIndicatorRule(closePrice, vwap))
+//				.or(new OverIndicatorRule(cmf, 0.4d))
+//				.or(new UnderIndicatorRule(closePrice,pSar))
+				.or(new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(10)))
+				.or(new StopLossRule(closePrice, PrecisionNum.valueOf(10)));
 
 		strategy = new BaseStrategy(buyingRule, sellingRule);
 	}

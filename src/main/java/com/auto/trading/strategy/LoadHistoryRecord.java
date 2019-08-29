@@ -28,17 +28,18 @@ public class LoadHistoryRecord {
 		long start = 1514764799999l; // 2018/01/01
 		long end = 1566691199999l; // 2019/08/25
 //		start = 1546271999999l; //2019/08/01
-		start = 1483199999999l; //2017/01/01
+		start = 1483199999999l; // 2017/01/01
 		end = 1567267199999l;
 
-		long timeFrame = 60000 * 60 ; // millisecond 1 min = 60000ms, 1hr = 1440000ms
-		CandlestickInterval interval = CandlestickInterval.HOURLY;
+		long timeFrame = 60000 * 15; // millisecond 1 min = 60000ms, 1hr = 1440000ms
+		CandlestickInterval interval = CandlestickInterval.FIFTEEN_MINUTES;
 
 		int limit = 720; // Get 720 record each time
 		long eachLoopMs = timeFrame * limit;
 
-		long count = (long) ((end - start) / eachLoopMs);
-		
+		long count = ((end - start) % eachLoopMs) == 0 ? ((end - start) / eachLoopMs)
+				: ((end - start) / eachLoopMs + 1);
+
 		System.out.println("Count:" + count);
 		System.out.println("Time Frame:" + timeFrame);
 		System.out.println("Limit:" + limit);
@@ -78,7 +79,8 @@ public class LoadHistoryRecord {
 		System.out.println(history.get(0));
 		System.out.println(history.get(history.size() - 1));
 		System.out.println(history.size());
-		System.out.println(sdf.format(new Date(history.get(history.size() - 1).getCloseTime())));
+		System.out.println("Start: " + sdf.format(new Date(history.get(0).getCloseTime())));
+		System.out.println("End: " + sdf.format(new Date(history.get(history.size() - 1).getCloseTime())));
 	}
 
 }
