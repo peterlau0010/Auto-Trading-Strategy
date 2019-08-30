@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -27,6 +28,7 @@ import org.jfree.data.time.Minute;
 import org.jfree.data.time.TimeSeriesCollection;
 import org.jfree.ui.ApplicationFrame;
 import org.jfree.ui.RefineryUtilities;
+import org.ta4j.core.AnalysisCriterion;
 import org.ta4j.core.Bar;
 import org.ta4j.core.BaseStrategy;
 import org.ta4j.core.BaseTimeSeries;
@@ -60,6 +62,7 @@ import org.ta4j.core.indicators.statistics.StandardDeviationIndicator;
 import org.ta4j.core.indicators.volume.ChaikinMoneyFlowIndicator;
 import org.ta4j.core.indicators.volume.OnBalanceVolumeIndicator;
 import org.ta4j.core.indicators.volume.VWAPIndicator;
+import org.ta4j.core.num.DoubleNum;
 import org.ta4j.core.num.Num;
 import org.ta4j.core.num.PrecisionNum;
 import org.ta4j.core.trading.rules.BooleanIndicatorRule;
@@ -104,7 +107,7 @@ public class BackTest {
 	private static PlusDIIndicator pdi;
 	private static MinusDIIndicator mdi;
 	private static CustVWAPIndicator vwap;
-	
+
 	static DecimalFormat df = new DecimalFormat("#.####");
 	private static MACDIndicator macd;
 	private static EMAIndicator signal;
@@ -113,11 +116,93 @@ public class BackTest {
 		// TODO Auto-generated method stub
 
 		init();
-		buildIndicators();
-		buildStrategies();
-		runStrategies();
+//		buildIndicators();
+		buildIndicators(0, 0);
+		List<Strategy> strategies = buildStrategies();
+		optimalStrategy(strategies);
+//		runStrategies();
 		analysisStrategies();
 //		showCashFlowChart();
+	}
+
+	/**
+	 * @param strategies
+	 */
+	public static void optimalStrategy(List<Strategy> strategies) {
+		TimeSeriesManager manager = new TimeSeriesManager(series);
+
+		AnalysisCriterion criterion = new TotalProfitCriterion() {
+			public Strategy chooseBest(TimeSeriesManager manager, List<Strategy> strategies) {
+
+				Strategy bestStrategy = strategies.get(0);
+				Num bestCriterionValue = calculate(manager.getTimeSeries(),
+						manager.run(bestStrategy, series.getBeginIndex() + 30, series.getBarCount()));
+
+				for (int i = 1; i < strategies.size(); i++) {
+					Strategy currentStrategy = strategies.get(i);
+					Num currentCriterionValue = calculate(manager.getTimeSeries(),
+							manager.run(currentStrategy, series.getBeginIndex() + 30, series.getBarCount()));
+//					System.out.println("currentCriterionValue: " + currentCriterionValue.doubleValue());
+
+					if (betterThan(currentCriterionValue, bestCriterionValue)) {
+						bestStrategy = currentStrategy;
+						bestCriterionValue = currentCriterionValue;
+						System.out.println("currentCriterionValue: " + currentCriterionValue.doubleValue());
+					}
+				}
+				return bestStrategy;
+			}
+
+			@Override
+			public Num calculate(TimeSeries series, TradingRecord tradingRecord) {
+				if (tradingRecord.getTrades().size() < 10) {
+					return PrecisionNum.valueOf(0);
+				}
+				return tradingRecord.getTrades().stream().map(trade -> calculateProfit(series, trade))
+						.reduce(series.numOf(1), (profit1, profit2) -> profit1.multipliedBy(profit2));
+			}
+
+			private Num calculateProfit(TimeSeries series, Trade trade) {
+				Num profit = series.numOf(1);
+				if (trade.isClosed()) {
+					// use price of entry/exit order, if NaN use close price of underlying time
+					// series
+					Num exitClosePrice = trade.getExit().getPrice().isNaN()
+							? series.getBar(trade.getExit().getIndex()).getClosePrice()
+							: trade.getExit().getPrice();
+					Num entryClosePrice = trade.getEntry().getPrice().isNaN()
+							? series.getBar(trade.getEntry().getIndex()).getClosePrice()
+							: trade.getEntry().getPrice();
+
+					Num tradeFee = PrecisionNum.valueOf(0);
+					tradeFee = PrecisionNum.valueOf(exitClosePrice.plus(entryClosePrice).doubleValue() * 0.00075);
+//					 System.out.println(tradeFee.doubleValue());
+					if (trade.getEntry().isBuy()) {
+						profit = exitClosePrice.dividedBy(entryClosePrice);
+						profit = profit.minus(tradeFee);
+
+					} else {
+						profit = entryClosePrice.dividedBy(exitClosePrice);
+						profit = profit.minus(tradeFee);
+					}
+
+				}
+				return profit;
+			}
+		};
+		Strategy bestStrategy = criterion.chooseBest(manager, strategies);
+//		tradingRecord = manager.run(bestStrategy, series.getBeginIndex() + 30, series.getBarCount());
+		tradingRecord = manager.run(bestStrategy, series.getBeginIndex() + 30, series.getBarCount());
+
+		System.out.println("Total profit: " + criterion.calculate(series, tradingRecord));
+//		System.out.println(bestStrategy.getEntryRule());
+//		System.out.println(bestStrategy.getExitRule());
+//		List<TradingRecord> tradingRecordList = new ArrayList<TradingRecord>();
+//		for (int i =0 ; i< strategies.size()-1;i++) {
+//			tradingRecordList.add(manager.run(strategies.get(i), series.getBeginIndex() + 30, series.getBarCount()));	
+//		}
+//		TotalProfitCriterion totalProfit = new TotalProfitCriterion();
+
 	}
 
 	public static void analysisStrategies() throws IOException {
@@ -152,7 +237,6 @@ public class BackTest {
 		double sumNetProfit = 0;
 		double sumTradeFee = 0;
 		double sumTProfit = 0;
-		
 
 		List<Trade> trades;
 
@@ -215,73 +299,10 @@ public class BackTest {
 		System.out.println("Net Profit: " + sumNetProfit);
 	}
 
-	public static void showCashFlowChart() {
-		CashFlow cashFlow = new CashFlow(series, tradingRecord);
-
-		TimeSeriesCollection datasetAxis1 = new TimeSeriesCollection();
-		datasetAxis1.addSeries(buildChartTimeSeries(series, new ClosePriceIndicator(series), "Bitstamp Bitcoin (BTC)"));
-		TimeSeriesCollection datasetAxis2 = new TimeSeriesCollection();
-		datasetAxis2.addSeries(buildChartTimeSeries(series, cashFlow, "Cash Flow"));
-
-		JFreeChart chart = ChartFactory.createTimeSeriesChart("Binance BTC", // title
-				"Date", // x-axis label
-				"Price", // y-axis label
-				datasetAxis1, // data
-				true, // create legend?
-				true, // generate tooltips?
-				false // generate URLs?
-		);
-		XYPlot plot = (XYPlot) chart.getPlot();
-		DateAxis axis = (DateAxis) plot.getDomainAxis();
-		axis.setDateFormatOverride(new SimpleDateFormat("MM-dd HH:mm"));
-
-		/*
-		 * Adding the cash flow axis (on the right)
-		 */
-		addCashFlowAxis(plot, datasetAxis2);
-
-		displayChart(chart);
-	}
-
-	private static org.jfree.data.time.TimeSeries buildChartTimeSeries(TimeSeries barseries, Indicator<Num> indicator,
-			String name) {
-		org.jfree.data.time.TimeSeries chartTimeSeries = new org.jfree.data.time.TimeSeries(name);
-		for (int i = 0; i < barseries.getBarCount(); i++) {
-			Bar bar = barseries.getBar(i);
-			chartTimeSeries.add(new Minute(new Date(bar.getEndTime().toEpochSecond() * 1000)),
-					indicator.getValue(i).doubleValue());
-		}
-		return chartTimeSeries;
-	}
-
-	private static void addCashFlowAxis(XYPlot plot, TimeSeriesCollection dataset) {
-		final NumberAxis cashAxis = new NumberAxis("Cash Flow Ratio");
-		cashAxis.setAutoRangeIncludesZero(false);
-		plot.setRangeAxis(1, cashAxis);
-		plot.setDataset(1, dataset);
-		plot.mapDatasetToRangeAxis(1, 1);
-		final StandardXYItemRenderer cashFlowRenderer = new StandardXYItemRenderer();
-		cashFlowRenderer.setSeriesPaint(0, Color.blue);
-		plot.setRenderer(1, cashFlowRenderer);
-	}
-
-	private static void displayChart(JFreeChart chart) {
-		// Chart panel
-		ChartPanel panel = new ChartPanel(chart);
-		panel.setFillZoomRectangle(true);
-		panel.setMouseWheelEnabled(true);
-		panel.setPreferredSize(new Dimension(1024, 400));
-		// Application frame
-		ApplicationFrame frame = new ApplicationFrame("Ta4j example - Cash flow to chart");
-		frame.setContentPane(panel);
-		frame.pack();
-		RefineryUtilities.centerFrameOnScreen(frame);
-		frame.setVisible(true);
-	}
-
 	public static void runStrategies() {
 		TimeSeriesManager manager = new TimeSeriesManager(series);
-		tradingRecord = manager.run(strategy, series.getBeginIndex() + 50, series.getBarCount());
+//		List<TradingRecord> tradingRecordList = new ArrayList<TradingRecord>();
+		tradingRecord = manager.run(strategy, series.getBeginIndex() + 30, series.getBarCount());
 //		tradingRecord = manager.run(strategy, series.getBarCount(), series.getBarCount());
 	}
 
@@ -297,9 +318,9 @@ public class BackTest {
 		pdi = new PlusDIIndicator(series, 14);
 		adx = new ADXIndicator(series, 14, 14);
 		vwap = new CustVWAPIndicator(series, 65);
-		macd = new MACDIndicator(closePrice,12,26);
-		signal = new EMAIndicator(macd,9);
-		
+		macd = new MACDIndicator(closePrice, 12, 26);
+		signal = new EMAIndicator(macd, 9);
+
 		stochasticRSI = new StochasticRSIIndicator(new RSIIndicator(closePrice, 9), 9);
 		stochasticOscillatorK = new SMAIndicator(stochasticRSI, 3);
 		stochasticOscillatorD = new SMAIndicator(stochasticOscillatorK, 3);
@@ -311,10 +332,9 @@ public class BackTest {
 		bbl = new BollingerBandsLowerIndicator(bbm, standardDeviation);
 		bbh = new BollingerBandsUpperIndicator(bbm, standardDeviation);
 		pSar = new ParabolicSarIndicator(series);
-		vwap = new CustVWAPIndicator(series,30,15);
-		
-		
-		int barIndex = 62992;
+		vwap = new CustVWAPIndicator(series, 30, 15);
+
+		int barIndex = 0;
 //		System.out.println(
 //				series.getBar(barIndex).getDateName() + " K:" + k.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " MACD:" + macd.getValue(barIndex));
@@ -347,13 +367,10 @@ public class BackTest {
 //				System.out.println(series.getBar(62692).getDateName() + " vwap:" + vwapo.getValue(62692));	
 //			}
 //		}
-		
 
 //		System.out.println(series.getBar(62691).getDateName() + " vwap:" + vwap.getValue(62691));
 //		System.out.println(series.getBar(62692).getDateName() + " vwap:" + vwap.getValue(62692));
-			
-			
-			
+
 //		for (int i = 0; i < series.getBarCount() - 1; i++) {
 //
 //			if (closePrice.getValue(i).doubleValue() < bbl.getValue(i).doubleValue()) {
@@ -363,20 +380,70 @@ public class BackTest {
 //		}
 	}
 
-	public static void buildStrategies() {
+	public static void buildIndicators(int rsiPreiod, int cmfPreiod) {
+		closePrice = new ClosePriceIndicator(series);
+		SMAIndicator sma = new SMAIndicator(closePrice, 20);
+		BollingerBandsMiddleIndicator bbm = new BollingerBandsMiddleIndicator(sma);
+		StandardDeviationIndicator standardDeviation = new StandardDeviationIndicator(closePrice, 20);
 
-		Rule buyingRule = new OverIndicatorRule(closePrice, 0)
-				.and(new UnderIndicatorRule(closePrice, bbl))
+		rsiPreiod = 12;
+		cmfPreiod = 20;
+
+		bbl = new BollingerBandsLowerIndicator(bbm, standardDeviation);
+		bbh = new BollingerBandsUpperIndicator(bbm, standardDeviation);
+		rsiShort = new RSIIndicator(closePrice, rsiPreiod);
+		cmf = new ChaikinMoneyFlowIndicator(series, cmfPreiod);
+		stochasticRSI = new StochasticRSIIndicator(new RSIIndicator(closePrice, 9), 9);
+		stochasticOscillatorK = new SMAIndicator(stochasticRSI, 3);
+		stochasticOscillatorD = new SMAIndicator(stochasticOscillatorK, 3);
+	}
+
+	public static List<Strategy> buildStrategies() {
+		List<Strategy> strategies = new ArrayList<Strategy>();
+
+		Rule buyingRule;
+		Rule sellingRule = new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(2));
+		for (int i = 0; i <= 20; i++) {
+			for (int k = 0; k <= 40; k++) {
+				for (int j = 0; j <= 40; j++) {
+					Number kValueBuy = 0d;
+					Number rsiValueBuy = 0d; // value from 0 to 100
+					Number cmfValueBuy = -1d; // value from -1 to 1
+
+					rsiValueBuy = i * 5;
+					cmfValueBuy = -1 + (k * 0.05d);
+					kValueBuy = j * 5;
+
+					System.out.println("rsiValue: " + rsiValueBuy + " | cmfValue: " + cmfValueBuy+ " | kValueBuy: " + kValueBuy);
+
+					buyingRule = new OverIndicatorRule(cmf, cmfValueBuy)
+							.and(new OverIndicatorRule(rsiShort, rsiValueBuy))
+							.or(new OverIndicatorRule(stochasticOscillatorK, kValueBuy))
+							;
+
+					strategies.add(new BaseStrategy(buyingRule, sellingRule));
+				}
+
+			}
+		}
+
+		System.out.println(strategies.size());
+		return strategies;
+
+	}
+
+	public static void buildStrategies_temp() {
+
+		Rule buyingRule = new OverIndicatorRule(closePrice, 0).and(new UnderIndicatorRule(closePrice, bbh))
 //				.and(new UnderIndicatorRule(pSar,closePrice))
-				.and(new UnderIndicatorRule(stochasticOscillatorK, 0.1d))
-				.and(new UnderIndicatorRule(cmf, -0.2d))
+				.and(new UnderIndicatorRule(stochasticOscillatorK, 0.8d)).and(new UnderIndicatorRule(cmf, 0.2d))
 //				.and(new UnderIndicatorRule(rsiLong, 60d))
 //				.and(new OverIndicatorRule(adx, 25d))
 //				.and(new OverIndicatorRule(pdi, mdi))
 //				.and(new OverIndicatorRule(closePrice, vwap))
-//				.and(new OverIndicatorRule(macd, signal))
+				.and(new OverIndicatorRule(macd, signal))
 //				.and(new OverIndicatorRule(macd, 0d))
-				.and(new UnderIndicatorRule(rsiShort, 20d))
+				.and(new UnderIndicatorRule(rsiShort, 70d))
 
 //				.and(new IsRisingRule(adx, 5))
 //				.and(new UnderIndicatorRule(obv, 0d));
@@ -385,15 +452,15 @@ public class BackTest {
 //		Rule sellingRule = new OverIndicatorRule(closePrice, bbh).or(new StopLossRule(closePrice,2));
 //		.and(new OverIndicatorRule(pSar, closePrice));
 		Rule sellingRule = new StopGainRule(closePrice, 20)
-				
+
 //				.or(new CrossedDownIndicatorRule(closePrice, smaLong))
 //				.or(new CrossedDownIndicatorRule(closePrice, vwap))
 //				.or(new OverIndicatorRule(cmf, 0.4d))
 //				.or(new UnderIndicatorRule(closePrice,pSar))
 //				.or(new CrossedUpIndicatorRule(closePrice, bbh))
 //				.and(new OverIndicatorRule(rsiLong,70d))
-				.or(new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(10)))
-				.or(new StopLossRule(closePrice, PrecisionNum.valueOf(10)));
+				.or(new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(5)))
+				.or(new StopLossRule(closePrice, PrecisionNum.valueOf(2)));
 
 		strategy = new BaseStrategy(buyingRule, sellingRule);
 	}
