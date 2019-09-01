@@ -41,6 +41,8 @@ import org.ta4j.core.TimeSeries;
 import org.ta4j.core.TimeSeriesManager;
 import org.ta4j.core.Trade;
 import org.ta4j.core.TradingRecord;
+import org.ta4j.core.indicators.AccelerationDecelerationIndicator;
+import org.ta4j.core.indicators.AwesomeOscillatorIndicator;
 import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.ParabolicSarIndicator;
@@ -111,6 +113,10 @@ public class BackTest {
 	static DecimalFormat df = new DecimalFormat("#.####");
 	private static MACDIndicator macd;
 	private static EMAIndicator signal;
+	private static SMAIndicator sma50;
+	private static SMAIndicator sma100;
+	private static BollingerBandsMiddleIndicator bbm;
+	private static AccelerationDecelerationIndicator  ac;
 
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
@@ -383,49 +389,78 @@ public class BackTest {
 	public static void buildIndicators(int rsiPreiod, int cmfPreiod) {
 		closePrice = new ClosePriceIndicator(series);
 		SMAIndicator sma = new SMAIndicator(closePrice, 20);
-		BollingerBandsMiddleIndicator bbm = new BollingerBandsMiddleIndicator(sma);
+		bbm = new BollingerBandsMiddleIndicator(sma);
 		StandardDeviationIndicator standardDeviation = new StandardDeviationIndicator(closePrice, 20);
 
-		rsiPreiod = 12;
+		sma50 = new SMAIndicator(closePrice, 50);
+		sma100 = new SMAIndicator(closePrice, 100);
+		rsiPreiod = 6;
 		cmfPreiod = 20;
 
 		bbl = new BollingerBandsLowerIndicator(bbm, standardDeviation);
 		bbh = new BollingerBandsUpperIndicator(bbm, standardDeviation);
 		rsiShort = new RSIIndicator(closePrice, rsiPreiod);
+		rsiLong = new RSIIndicator(closePrice, 20);
 		cmf = new ChaikinMoneyFlowIndicator(series, cmfPreiod);
 		stochasticRSI = new StochasticRSIIndicator(new RSIIndicator(closePrice, 9), 9);
 		stochasticOscillatorK = new SMAIndicator(stochasticRSI, 3);
 		stochasticOscillatorD = new SMAIndicator(stochasticOscillatorK, 3);
+		macd = new MACDIndicator(closePrice, 12, 26);
+		signal = new EMAIndicator(macd, 9);
+		mdi = new MinusDIIndicator(series, 14);
+		pdi = new PlusDIIndicator(series, 14);
+		adx = new ADXIndicator(series, 14, 14);
+		ac = new AccelerationDecelerationIndicator  (series);
+		
+		int barIndex = series.getBarCount()-2;
+		System.out.println(series.getBar(barIndex).getDateName() + " Close Price:" + closePrice.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " ac:" + ac.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " +DI:" + pdi.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " -DI:" + mdi.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " ADX:" + adx.getValue(barIndex));
 	}
 
 	public static List<Strategy> buildStrategies() {
 		List<Strategy> strategies = new ArrayList<Strategy>();
 
-		Rule buyingRule;
-		Rule sellingRule = new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(2));
-		for (int i = 0; i <= 20; i++) {
-			for (int k = 0; k <= 40; k++) {
-				for (int j = 0; j <= 40; j++) {
-					Number kValueBuy = 0d;
-					Number rsiValueBuy = 0d; // value from 0 to 100
-					Number cmfValueBuy = -1d; // value from -1 to 1
-
-					rsiValueBuy = i * 5;
-					cmfValueBuy = -1 + (k * 0.05d);
-					kValueBuy = j * 5;
-
-					System.out.println("rsiValue: " + rsiValueBuy + " | cmfValue: " + cmfValueBuy+ " | kValueBuy: " + kValueBuy);
-
-					buyingRule = new OverIndicatorRule(cmf, cmfValueBuy)
-							.and(new OverIndicatorRule(rsiShort, rsiValueBuy))
-							.or(new OverIndicatorRule(stochasticOscillatorK, kValueBuy))
-							;
-
+		Rule buyingRule = 
+				new CrossedDownIndicatorRule(pdi, 10d)
+				.and(new UnderIndicatorRule(ac,0d))
+//				.and(new UnderIndicatorRule(rsiLong,30d))
+//				.or(new UnderIndicatorRule(closePrice,bbl))
+//				.and(new CrossedDownIndicatorRule(rsiLong,30d))
+//				.and(new OverIndicatorRule(macd, 0d))
+//				.and(new UnderIndicatorRule(closePrice,bbl))
+//				.and(new OverIndicatorRule(closePrice,sma50))
+				;
+		Rule sellingRule = new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(2.5))
+//				.and(new UnderIndicatorRule(closePrice,bbh))
+				.or(new CrossedUpIndicatorRule(pdi,20d))
+				.or(new StopGainRule(closePrice, 2.5))
+				;
+//		for (int i = 0; i <= 20; i++) {
+//			for (int k = 0; k <= 40; k++) {
+//				for (int j = 0; j <= 40; j++) {
+//					Number kValueBuy = 0d;
+//					Number rsiValueBuy = 0d; // value from 0 to 100
+//					Number cmfValueBuy = -1d; // value from -1 to 1
+//
+//					rsiValueBuy = i * 5;
+//					cmfValueBuy = -1 + (k * 0.05d);
+//					kValueBuy = j * 5;
+//
+//					System.out.println("rsiValue: " + rsiValueBuy + " | cmfValue: " + cmfValueBuy+ " | kValueBuy: " + kValueBuy);
+//
+//					buyingRule = new OverIndicatorRule(cmf, cmfValueBuy)
+//							.and(new OverIndicatorRule(rsiShort, rsiValueBuy))
+//							.or(new OverIndicatorRule(stochasticOscillatorK, kValueBuy))
+//							;
+//
 					strategies.add(new BaseStrategy(buyingRule, sellingRule));
-				}
-
-			}
-		}
+//				}
+//
+//			}
+//		}
 
 		System.out.println(strategies.size());
 		return strategies;
@@ -460,7 +495,7 @@ public class BackTest {
 //				.or(new CrossedUpIndicatorRule(closePrice, bbh))
 //				.and(new OverIndicatorRule(rsiLong,70d))
 				.or(new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(5)))
-				.or(new StopLossRule(closePrice, PrecisionNum.valueOf(2)));
+				.or(new StopLossRule(closePrice, PrecisionNum.valueOf(2.5)));
 
 		strategy = new BaseStrategy(buyingRule, sellingRule);
 	}
