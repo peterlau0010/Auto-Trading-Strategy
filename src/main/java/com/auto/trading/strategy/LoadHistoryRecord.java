@@ -48,7 +48,7 @@ public class LoadHistoryRecord {
 		sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
 		for (int i = 0; i < count; i++) {
-			List<Candlestick> candlesticks = restClient.getCandlestickBars("EOSBTC", interval, limit, start,
+			List<Candlestick> candlesticks = restClient.getCandlestickBars("BTCUSDT", interval, limit, start,
 					(start + eachLoopMs));
 
 			history.addAll(candlesticks);

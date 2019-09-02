@@ -73,6 +73,7 @@ import org.ta4j.core.trading.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.trading.rules.IsEqualRule;
 import org.ta4j.core.trading.rules.IsFallingRule;
 import org.ta4j.core.trading.rules.IsRisingRule;
+import org.ta4j.core.trading.rules.NotRule;
 import org.ta4j.core.trading.rules.OverIndicatorRule;
 import org.ta4j.core.trading.rules.StopGainRule;
 import org.ta4j.core.trading.rules.StopLossRule;
@@ -110,13 +111,15 @@ public class BackTest {
 	private static MinusDIIndicator mdi;
 	private static CustVWAPIndicator vwap;
 
-	static DecimalFormat df = new DecimalFormat("#.####");
+	static DecimalFormat df = new DecimalFormat("#.######");
 	private static MACDIndicator macd;
 	private static EMAIndicator signal;
 	private static SMAIndicator sma50;
 	private static SMAIndicator sma100;
 	private static BollingerBandsMiddleIndicator bbm;
 	private static AccelerationDecelerationIndicator  ac;
+	private static SMAIndicator sma5;
+	private static SMAIndicator sma20;
 
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
@@ -256,7 +259,7 @@ public class BackTest {
 			// Buy Info
 			csvWriter.append(trade.getEntry().getIndex() + ",");
 			csvWriter.append(series.getBar(trade.getEntry().getIndex()).getDateName() + ",");
-			csvWriter.append(trade.getEntry().getPrice().doubleValue() + ",");
+			csvWriter.append(df.format(trade.getEntry().getPrice().doubleValue()) + ",");
 
 //			csvWriter.append(df.format(bbl.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
 //			csvWriter.append(df.format(stochasticRSI.getValue(trade.getEntry().getIndex()).doubleValue()) + ",");
@@ -288,7 +291,7 @@ public class BackTest {
 			csvWriter.append(df.format(tradeFee) + ",");
 
 			// Profit
-			csvWriter.append((profit - tradeFee) + "");
+			csvWriter.append(df.format(profit - tradeFee) + "");
 
 			csvWriter.append("\n");
 
@@ -300,9 +303,9 @@ public class BackTest {
 		csvWriter.close();
 
 		sumNetProfit = sumTProfit - sumTradeFee;
-		System.out.println("Sum of Profit: " + sumTProfit);
-		System.out.println("Sum of Trade Fee: " + sumTradeFee);
-		System.out.println("Net Profit: " + sumNetProfit);
+		System.out.println("Sum of Profit: " + df.format(sumTProfit));
+		System.out.println("Sum of Trade Fee: " + df.format(sumTradeFee));
+		System.out.println("Net Profit: " + df.format(sumNetProfit));
 	}
 
 	public static void runStrategies() {
@@ -391,7 +394,9 @@ public class BackTest {
 		SMAIndicator sma = new SMAIndicator(closePrice, 20);
 		bbm = new BollingerBandsMiddleIndicator(sma);
 		StandardDeviationIndicator standardDeviation = new StandardDeviationIndicator(closePrice, 20);
-
+		
+		sma5 = new SMAIndicator(closePrice, 5);
+		sma20 = new SMAIndicator(closePrice, 20);
 		sma50 = new SMAIndicator(closePrice, 50);
 		sma100 = new SMAIndicator(closePrice, 100);
 		rsiPreiod = 6;
@@ -424,19 +429,20 @@ public class BackTest {
 		List<Strategy> strategies = new ArrayList<Strategy>();
 
 		Rule buyingRule = 
-				new CrossedDownIndicatorRule(pdi, 10d)
-				.and(new UnderIndicatorRule(ac,0d))
-//				.and(new UnderIndicatorRule(rsiLong,30d))
-//				.or(new UnderIndicatorRule(closePrice,bbl))
+				new OverIndicatorRule(closePrice, 0d)
+//				.and(new UnderIndicatorRule(ac,0d))
+				.and(new UnderIndicatorRule(rsiLong,10d))
+				.and(new UnderIndicatorRule(closePrice,bbl))
 //				.and(new CrossedDownIndicatorRule(rsiLong,30d))
-//				.and(new OverIndicatorRule(macd, 0d))
+//				.and(new NotRule(new UnderIndicatorRule(closePrice,sma5)))
 //				.and(new UnderIndicatorRule(closePrice,bbl))
 //				.and(new OverIndicatorRule(closePrice,sma50))
 				;
-		Rule sellingRule = new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(2.5))
+		Rule sellingRule = new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(20))
 //				.and(new UnderIndicatorRule(closePrice,bbh))
-				.or(new CrossedUpIndicatorRule(pdi,20d))
+				.or(new OverIndicatorRule(closePrice,sma20))
 				.or(new StopGainRule(closePrice, 2.5))
+				.or(new StopLossRule(closePrice, 2.5))
 				;
 //		for (int i = 0; i <= 20; i++) {
 //			for (int k = 0; k <= 40; k++) {
