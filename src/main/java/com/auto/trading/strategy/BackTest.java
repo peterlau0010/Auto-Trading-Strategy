@@ -10,6 +10,7 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -138,8 +139,11 @@ public class BackTest {
 
 		init();
 //		buildIndicators();
+		series = series.getSubSeries(series.getBarCount()-365, series.getBarCount());
 		buildIndicators(0, 0);
 		List<Strategy> strategies = buildStrategies();
+		
+		
 		optimalStrategy(strategies);
 //		runStrategies();
 		analysisStrategies();
@@ -487,24 +491,24 @@ public class BackTest {
 		Rule buyingRule = 
 				new OverIndicatorRule(closePrice, 0d)
 //				.and(new UnderIndicatorRule(ac,0d))
-				.and(new CrossedUpIndicatorRule(closePrice,ichA))
-				.and(new OverIndicatorRule(closePrice,ichB))
-				.and(new OverIndicatorRule(ichA,ichB))
-				.or(new OverIndicatorRule(closePrice,ichA))
-				.and(new CrossedUpIndicatorRule(closePrice,ichB))
-				.and(new OverIndicatorRule(ichA,ichB))
+				.and(new CrossedUpIndicatorRule(closePrice,sma20))
+//				.and(new OverIndicatorRule(closePrice,ichB))
+//				.and(new OverIndicatorRule(ichA,ichB))
+//				.or(new OverIndicatorRule(closePrice,ichA))
+//				.and(new CrossedUpIndicatorRule(closePrice,ichB))
+//				.and(new OverIndicatorRule(ichA,ichB))
 //				.and(new CrossedDownIndicatorRule(rsiLong,30d))
 //				.and(new NotRule(new UnderIndicatorRule(closePrice,sma5)))
 //				.and(new UnderIndicatorRule(closePrice,bbl))
 //				.and(new OverIndicatorRule(closePrice,sma50))
 				;
-		Rule sellingRule = new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(20))
-//				.and(new UnderIndicatorRule(closePrice,bbh))
+		Rule sellingRule = new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(20),PrecisionNum.valueOf(200))
+				.and(new UnderIndicatorRule(closePrice,sma20))
 //				.or(new OverIndicatorRule(closePrice,sma20))
 //				.or(new StopGainRule(closePrice, 2.5))
-				.or(new StopLossRule(closePrice, 2.5))
-				.or(new CrossedDownIndicatorRule(closePrice,ichA))
-				.or(new CrossedDownIndicatorRule(closePrice,ichB))
+//				.or(new StopLossRule(closePrice, 2.5))
+//				.or(new CrossedDownIndicatorRule(closePrice,ichA))
+//				.or(new CrossedDownIndicatorRule(closePrice,ichB))
 				;
 //		for (int i = 0; i <= 20; i++) {
 //			for (int k = 0; k <= 40; k++) {
@@ -571,17 +575,29 @@ public class BackTest {
 	public static void init() throws IOException {
 		series = new BaseTimeSeries.SeriesBuilder().withName("historyCSV").build();
 //		series.setMaximumBarCount(200);
-		csvReader = new BufferedReader(new FileReader("history.csv"));
+		csvReader = new BufferedReader(new FileReader("daily_^HSI.csv"));
 		String row;
 		csvReader.readLine();
 		while ((row = csvReader.readLine()) != null) {
 			String[] data = row.split(",");
+			
+			
+			//Crypto
+//			ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(data[0])),
+//					ZoneId.systemDefault());
 
-			ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(data[0])),
-					ZoneId.systemDefault());
+			
+			//HSI
+			ZonedDateTime zdt = LocalDate.parse(data[0]).atStartOfDay(ZoneId.systemDefault());
+
 			series.addBar(zdt, Double.parseDouble(data[1]), Double.parseDouble(data[2]), Double.parseDouble(data[3]),
-					Double.parseDouble(data[4]), Double.parseDouble(data[5]));
-//			System.out.println(count++);
+			Double.parseDouble(data[4]), Double.parseDouble(data[5]));			
+			
 		}
+		
+		//recent year
+		
+
+		
 	}
 }
