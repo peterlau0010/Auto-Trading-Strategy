@@ -58,8 +58,15 @@ import org.ta4j.core.indicators.bollinger.BollingerBandsLowerIndicator;
 import org.ta4j.core.indicators.bollinger.BollingerBandsMiddleIndicator;
 import org.ta4j.core.indicators.bollinger.BollingerBandsUpperIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
+import org.ta4j.core.indicators.helpers.HighestValueIndicator;
+import org.ta4j.core.indicators.helpers.LowestValueIndicator;
 import org.ta4j.core.indicators.helpers.MaxPriceIndicator;
 import org.ta4j.core.indicators.helpers.MinPriceIndicator;
+import org.ta4j.core.indicators.ichimoku.IchimokuChikouSpanIndicator;
+import org.ta4j.core.indicators.ichimoku.IchimokuKijunSenIndicator;
+import org.ta4j.core.indicators.ichimoku.IchimokuSenkouSpanAIndicator;
+import org.ta4j.core.indicators.ichimoku.IchimokuSenkouSpanBIndicator;
+import org.ta4j.core.indicators.ichimoku.IchimokuTenkanSenIndicator;
 import org.ta4j.core.indicators.statistics.StandardDeviationIndicator;
 import org.ta4j.core.indicators.volume.ChaikinMoneyFlowIndicator;
 import org.ta4j.core.indicators.volume.OnBalanceVolumeIndicator;
@@ -120,6 +127,11 @@ public class BackTest {
 	private static AccelerationDecelerationIndicator  ac;
 	private static SMAIndicator sma5;
 	private static SMAIndicator sma20;
+	private static IchimokuTenkanSenIndicator ichTenkanSen;
+	private static IchimokuKijunSenIndicator ichKijunSen;
+	private static IchimokuChikouSpanIndicator ichSpan;
+	private static IchimokuSenkouSpanAIndicator ichA;
+	private static IchimokuSenkouSpanBIndicator ichB;
 
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
@@ -416,13 +428,57 @@ public class BackTest {
 		pdi = new PlusDIIndicator(series, 14);
 		adx = new ADXIndicator(series, 14, 14);
 		ac = new AccelerationDecelerationIndicator  (series);
+		ichTenkanSen = new IchimokuTenkanSenIndicator(series);
+		ichKijunSen = new IchimokuKijunSenIndicator(series);
+		ichSpan = new IchimokuChikouSpanIndicator(series) {
+		    protected Num calculate(int index) {
+		        return closePrice.getValue(Math.min(series.getBarCount()-1, index + 26));
+		    }
+		};
+		ichA = new IchimokuSenkouSpanAIndicator(series);
+		ichB = new IchimokuSenkouSpanBIndicator(series) {
+//		    private Indicator<Num> periodHigh;
+
+		    /** The period low */
+//		    private Indicator<Num> periodLow;
+		    @Override
+		    protected Num calculate(int index) {
+//		    	System.out.println(index);
+		    	Indicator<Num> periodHigh = new HighestValueIndicator(new MaxPriceIndicator(series), 52);
+		    	Indicator<Num> periodLow  = new LowestValueIndicator(new MinPriceIndicator(series), 52);
+		    	if(index == 17812) {
+		    		System.out.println("Higher: " + periodHigh.getValue(index).doubleValue());
+		    		System.out.println("Lower: " + periodLow.getValue(index).doubleValue());
+//		    		periodLow.getValue(index).doubleValue();
+		    	}
+		        return periodHigh.getValue(index).plus(periodLow.getValue(index)).dividedBy(numOf(2));
+		    }
+		};
 		
-		int barIndex = series.getBarCount()-2;
+		
+		
+		
+		int barIndex = series.getBarCount()-30;
+		System.out.println(series.getBar(barIndex).getDateName() + " Bar:" + barIndex);
 		System.out.println(series.getBar(barIndex).getDateName() + " Close Price:" + closePrice.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " ac:" + ac.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " +DI:" + pdi.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " -DI:" + mdi.getValue(barIndex));
 		System.out.println(series.getBar(barIndex).getDateName() + " ADX:" + adx.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " ICH Tenkan:" + ichTenkanSen.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " ICH Kijun Sen:" + ichKijunSen.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " ICH Chikou Span:" + ichSpan.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " ICH A:" + ichA.getValue(barIndex));
+		System.out.println(series.getBar(barIndex).getDateName() + " ICH B:" + ichB.getValue(barIndex));
+		
+//		for (int i = 0;i<100;i++) {
+//			ichB = new IchimokuSenkouSpanBIndicator(series,i); //遲行
+//			
+//			System.out.println("Value:" + ichB.getValue(barIndex));
+//			if(ichB.getValue(barIndex).equals("9713.95")) {
+//				System.out.println("Found:" +  i);
+//			}
+//		}
 	}
 
 	public static List<Strategy> buildStrategies() {
@@ -431,8 +487,12 @@ public class BackTest {
 		Rule buyingRule = 
 				new OverIndicatorRule(closePrice, 0d)
 //				.and(new UnderIndicatorRule(ac,0d))
-				.and(new UnderIndicatorRule(rsiLong,10d))
-				.and(new UnderIndicatorRule(closePrice,bbl))
+				.and(new CrossedUpIndicatorRule(closePrice,ichA))
+				.and(new OverIndicatorRule(closePrice,ichB))
+				.and(new OverIndicatorRule(ichA,ichB))
+				.or(new OverIndicatorRule(closePrice,ichA))
+				.and(new CrossedUpIndicatorRule(closePrice,ichB))
+				.and(new OverIndicatorRule(ichA,ichB))
 //				.and(new CrossedDownIndicatorRule(rsiLong,30d))
 //				.and(new NotRule(new UnderIndicatorRule(closePrice,sma5)))
 //				.and(new UnderIndicatorRule(closePrice,bbl))
@@ -440,9 +500,11 @@ public class BackTest {
 				;
 		Rule sellingRule = new CustTrailingStopLossRule(closePrice, PrecisionNum.valueOf(20))
 //				.and(new UnderIndicatorRule(closePrice,bbh))
-				.or(new OverIndicatorRule(closePrice,sma20))
-				.or(new StopGainRule(closePrice, 2.5))
+//				.or(new OverIndicatorRule(closePrice,sma20))
+//				.or(new StopGainRule(closePrice, 2.5))
 				.or(new StopLossRule(closePrice, 2.5))
+				.or(new CrossedDownIndicatorRule(closePrice,ichA))
+				.or(new CrossedDownIndicatorRule(closePrice,ichB))
 				;
 //		for (int i = 0; i <= 20; i++) {
 //			for (int k = 0; k <= 40; k++) {

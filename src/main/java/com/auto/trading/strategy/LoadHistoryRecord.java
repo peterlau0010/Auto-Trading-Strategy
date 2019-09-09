@@ -31,8 +31,8 @@ public class LoadHistoryRecord {
 		start = 1483199999999l; // 2017/01/01
 		end = 1567267199999l;
 
-		long timeFrame = 60000 * 5;// millisecond 1 min = 60000ms, 1hr = 1440000ms
-		CandlestickInterval interval = CandlestickInterval.FIVE_MINUTES;
+		long timeFrame = 60000 * 60;// millisecond 1 min = 60000ms, 1hr = 1440000ms
+		CandlestickInterval interval = CandlestickInterval.HOURLY;
 
 		int limit = 720; // Get 720 record each time
 		long eachLoopMs = timeFrame * limit;
